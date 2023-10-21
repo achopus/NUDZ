@@ -6,12 +6,14 @@ import torch
 from torch import Tensor
 import numpy as np
 
+
+
 class NSDDataset(DatasetTorch):
     def __init__(self, file_path: str) -> None:
         super().__init__()
         self.path = file_path
         self.data = Dataset(file_path, is_loaded=True)
-        self.data.sumarize_basic_stats(False)
+        self.data.sumarize_basic_stats(visualize=False)
         self.N = len(self.data)
         self.possible_ids = [x for x in range(self.N)]
         self.epoch = 0
@@ -29,16 +31,20 @@ class NSDDataset(DatasetTorch):
             k = self.data.drugs.index(label)
             labels_encoded[i, k] = 1.0
             specs_matrix[i, ...] = torch.from_numpy(spec)
-            
+        
+        specs_matrix = torch.nan_to_num(specs_matrix, nan=0)
+
         return labels_encoded, specs_matrix
     
     def get_batch(self, batch_size: int) -> tuple[Tensor, Tensor]:
-
         assert batch_size <= len(self)
+
         if batch_size >= len(self.possible_ids):
             self.possible_ids = [x for x in range(self.N)]
             self.epoch += 1
+
         ids = list(np.random.choice(self.possible_ids, size=batch_size, replace=False))
+
         for id in ids: self.possible_ids.remove(id)
         
         return self[ids]

@@ -6,19 +6,21 @@ import torch.nn.functional as F
 H_constant = 254
 
 class Net(nn.Module):
-    def __init__(self, channels: list[int], reductions: list[str], num_classes: int) -> None:
+    def __init__(self, channels: list[int], reductions: list[str], num_classes: int, train_type: str) -> None:
         super().__init__()
         assert len(channels) == len(reductions) + 1
         self.feature_extractor = nn.Sequential(
+            nn.BatchNorm2d(num_features=channels[0]),
             *nn.ModuleList([ResBlock(ch1, ch2, red) for ch1, ch2, red in zip(channels[:-1], channels[1:], reductions)])
         )
-        self.FC = FullyConnected(channels[-1] * H_constant, num_classes)
+        
+        self.FC = FullyConnected(channels[-1] * (H_constant // 2), num_classes, train_type)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.feature_extractor(x)
         x = F.adaptive_max_pool2d(x, output_size=(x.shape[2], 1))
         if x.shape[-2:] != (H_constant, 1):
-            x = F.interpolate(x, (H_constant, 1))
+            x = F.interpolate(x, (H_constant // 2, 1))
         B, C, H, W = x.shape
         x = x.view(B, C * H * W)
         return self.FC(x)
@@ -54,13 +56,20 @@ class ResBlock(nn.Module):
         return self.out(self.block(x) + self.res(x))
     
 class FullyConnected(nn.Module):
-    def __init__(self, in_channels: int, num_classes: int) -> None:
+    def __init__(self, in_channels: int, num_classes: int, train_type: str = 'classification') -> None:
         super().__init__()
+
+        assert train_type in ['classification', 'clustering']
+        if train_type == 'classification':
+            out_layer = nn.Linear(in_channels // 2, num_classes, bias=True)
+        else:
+            out_layer = nn.Identity()
+
         self.fc = nn.Sequential(
             nn.Linear(in_channels, in_channels // 2, bias=False),
             nn.BatchNorm1d(in_channels // 2),
             nn.ReLU(inplace=True),
-            nn.Linear(in_channels // 2, num_classes, bias=True)
+            out_layer
         )
     
     def forward(self, x: Tensor) -> Tensor:
