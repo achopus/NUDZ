@@ -21,6 +21,20 @@ class ContrastiveLoss(nn.Module):
         
         return loss_value / B
 
+
+class TripletLoss(nn.Module):
+    def __init__(self, radius: float = 1.0) -> None:
+        super().__init__()
+        self.radius = radius        
+
+    def forward(self, anchor: Tensor, positive: Tensor, negative: Tensor) -> Tensor:
+        loss_positive = torch.linalg.norm(anchor - positive)**2
+        loss_negative = torch.linalg.norm(anchor - negative)**2
+
+        loss = loss_positive + F.relu(self.radius - loss_negative)
+        
+        return loss
+
 if __name__ == "__main__":
     feature_space = torch.rand((5, 256))
     labels = torch.zeros((5, 3))

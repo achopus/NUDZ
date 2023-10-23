@@ -6,7 +6,7 @@ import torch
 from torch import Tensor
 import numpy as np
 
-
+import random
 
 class NSDDataset(DatasetTorch):
     def __init__(self, file_path: str) -> None:
@@ -48,6 +48,34 @@ class NSDDataset(DatasetTorch):
         for id in ids: self.possible_ids.remove(id)
         
         return self[ids]
+
+    def get_triplet(self) -> tuple[Tensor, Tensor, Tensor]:
+        id = random.randint(0, len(self))
+        drug_anchor = self.data[id].drug
+        positive_class = self.data.select(drug=drug_anchor)
+
+        anchor: Measurement = random.sample(positive_class, k=1)[0]
+        ids = [x.id for x in positive_class if x.id != anchor.id]
+
+        positive = random.choice(self.data.select(drug=drug_anchor, id=random.choice(ids)))
+
+        drugs = self.data.drugs.copy()
+        drugs.remove(drug_anchor)
+
+        negative_class = self.data.select(drug=random.choice(drugs))
+        negative = random.sample(negative_class, k=1)[0]
+
+        anchor = self.data.get_spectrograms_train(self.data.folder.measurements.index(anchor))
+        positive = self.data.get_spectrograms_train(self.data.folder.measurements.index(positive))
+        negative = self.data.get_spectrograms_train(self.data.folder.measurements.index(negative))
+
+        # Call again, until shapes have correct shape
+        if anchor[1].shape[0] != 72 or positive[1].shape[0] != 72 or negative[1].shape[0] != 72:
+            return self.get_triplet()
+        
+        return torch.from_numpy(anchor[1]).float(), torch.from_numpy(positive[1]).float(), torch.from_numpy(negative[1]).float()
+
+
 
 if __name__ == "__main__":
     dataset = NSDDataset('saved_data.pickle')

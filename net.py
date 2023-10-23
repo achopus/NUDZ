@@ -6,7 +6,7 @@ import torch.nn.functional as F
 H_constant = 254
 
 class Net(nn.Module):
-    def __init__(self, channels: list[int], reductions: list[str], num_classes: int, train_type: str) -> None:
+    def __init__(self, channels: list[int], reductions: list[str], train_type: str, num_classes: int = None, output_dimension: int = None) -> None:
         super().__init__()
         assert len(channels) == len(reductions) + 1
         self.feature_extractor = nn.Sequential(
@@ -14,7 +14,7 @@ class Net(nn.Module):
             *nn.ModuleList([ResBlock(ch1, ch2, red) for ch1, ch2, red in zip(channels[:-1], channels[1:], reductions)])
         )
         
-        self.FC = FullyConnected(channels[-1] * (H_constant // 2), num_classes, train_type)
+        self.FC = FullyConnected(channels[-1] * (H_constant // 2), num_classes=num_classes, train_type=train_type, output_dimension=output_dimension)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.feature_extractor(x)
@@ -56,14 +56,17 @@ class ResBlock(nn.Module):
         return self.out(self.block(x) + self.res(x))
     
 class FullyConnected(nn.Module):
-    def __init__(self, in_channels: int, num_classes: int, train_type: str = 'classification') -> None:
+    def __init__(self, in_channels: int, num_classes: int = None, output_dimension :int = 2, train_type: str = 'classification') -> None:
         super().__init__()
+
+        if train_type == 'classification' and not num_classes:
+            raise RuntimeError('Cannot initilize network. Specify the number of classes for classification.')
 
         assert train_type in ['classification', 'clustering']
         if train_type == 'classification':
             out_layer = nn.Linear(in_channels // 2, num_classes, bias=True)
         else:
-            out_layer = nn.Identity()
+            out_layer = nn.Linear(in_channels // 2, output_dimension, bias=True)
 
         self.fc = nn.Sequential(
             nn.Linear(in_channels, in_channels // 2, bias=False),
@@ -79,12 +82,10 @@ if __name__ == "__main__":
     from time import time as t
     channels = [72, 128, 128, 256, 2]
     reductions = ['mean', 'mean', 'mean', None]
-    net = Net(channels, reductions, num_classes=10).cuda()
+    net = Net(channels, reductions, train_type='clustering', output_dimension=2).cuda()
     B = 5
-    t0 = t()
-    x = torch.zeros((B, 72, 254, 290)).cuda()
-    y:Tensor = net(x)
-    loss = F.cross_entropy(y.softmax(dim=1), y)
-    loss.backward()
-    t1 = t()
-    print(f"{B}: {round(t1-t0, ndigits=2)} s")
+    x = torch.rand((B, 72, 254, 290)).cuda()
+
+    x_mapped = net(x)
+
+    print(x_mapped)
