@@ -29,6 +29,11 @@ class Measurement:
         # File name handling - generate data headers
         assert os.path.exists(path)
         self.id, self.drug, self.order, _, self.time = path.split(sep='_')
+
+        # Group all saline-based drugs together
+        if 'sal' in self.drug:
+            self.drug = 'placebo'
+
         self.id = os.path.split(self.id)[-1]
         self.order = int(self.order)
         self.time = self.time.split(sep='.')[0]
@@ -46,7 +51,7 @@ class Measurement:
         for i, channel_name in enumerate(data.columns):
             self.measurement_data[channel_name] = data_np[:, i]
 
-    def __eq__(self, search_terms:dict) -> bool:
+    def __eq__(self, search_terms) -> bool:
         """ Decide whether measurement matches search criteria.
 
         Args:
@@ -55,7 +60,13 @@ class Measurement:
         Returns:
             bool: `True` if all attributes match, `False` otherwise.
         """
-        for key, value in search_terms.items():
+
+        if type(search_terms) != Measurement:
+            kv_pairs = search_terms
+        else:
+            kv_pairs = {'drug': search_terms.drug, 'id': search_terms.id, 'time': search_terms.time, 'order': search_terms.order}
+
+        for key, value in kv_pairs.items():
             if self.__getattribute__(key) != value: return False
         return True
     

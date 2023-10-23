@@ -25,6 +25,12 @@ class Dataset:
         else:
             self.folder = Folder(path)
 
+
+        # Group all saline-based substance under a single class
+        for i, measurement in enumerate(self.folder):
+            if 'sal' in measurement.drug and 'canab' not in measurement.drug:
+                self.folder[i].drug = 'placebo'
+
         
     def select(self, **kwargs) -> list[Measurement]:
         """Select measurements which match given search terms
@@ -95,8 +101,8 @@ class Dataset:
         plt.title("Time Counts")
 
         # Fullscreen
-        mng = plt.get_current_fig_manager()
-        mng.window.state('zoomed')
+        #mng = plt.get_current_fig_manager()
+        #mng.window.state('zoomed')
         
         plt.show()
 
